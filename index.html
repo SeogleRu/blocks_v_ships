@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a2b4a">
+    <title>БЛОКИ против КОРАБЛЕЙ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            touch-action: none;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            padding-top: calc(10px + env(safe-area-inset-top));
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .score {
+            background: rgba(0, 0, 0, 0.75);
+            color: #ffaa00;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: bold;
+            border: 2px solid #ffaa00;
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.5);
+        }
+        
+        .hp-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 6px 12px;
+            border-radius: 25px;
+            border: 2px solid #ff4444;
+        }
+        
+        .hp-icon { color: #ff4444; font-size: 18px; }
+        
+        .hp-bar-bg {
+            width: 100px;
+            height: 14px;
+            background: #333;
+            border-radius: 7px;
+            overflow: hidden;
+        }
+        
+        .hp-fill {
+            height: 100%;
+            background: #44ff44;
+            width: 100%;
+            transition: width 0.2s, background 0.2s;
+            border-radius: 7px;
+        }
+        
+        .joystick-base {
+            position: fixed;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            display: none;
+            z-index: 90;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 30px rgba(255, 170, 0, 0.3);
+        }
+        
+        .joystick-base.active { display: block; }
+        
+        .joystick-knob {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #ffe080, #ffaa00, #cc7700);
+            box-shadow: 0 4px 20px rgba(255, 153, 0, 0.8), inset 0 -4px 10px rgba(0,0,0,0.3), inset 0 4px 8px rgba(255,255,255,0.4);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .joystick-arrow {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .joystick-arrow.up    { top: 8px;    left: 50%; transform: translateX(-50%); }
+        .joystick-arrow.down  { bottom: 8px; left: 50%; transform: translateX(-50%); }
+        .joystick-arrow.left  { left: 8px;   top: 50%;  transform: translateY(-50%); }
+        .joystick-arrow.right { right: 8px;  top: 50%;  transform: translateY(-50%); }
+        
+        .shoot-button {
+            position: fixed;
+            right: 25px;
+            bottom: calc(40px + env(safe-area-inset-bottom));
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #ff6666, #cc0000);
+            border: 4px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 25px rgba(255, 50, 50, 0.7), inset 0 -5px 15px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 95;
+            touch-action: none;
+        }
+        
+        .shoot-button:active, .shoot-button.pressed {
+            transform: scale(0.9);
+            box-shadow: 0 0 40px rgba(255, 50, 50, 1), inset 0 -2px 8px rgba(0,0,0,0.5);
+        }
+        
+        .shoot-icon {
+            font-size: 40px;
+            pointer-events: none;
+        }
+        
+        .menu-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0a1525 0%, #1a2b4a 50%, #0a1525 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            padding: 20px;
+            overflow-y: auto;
+            pointer-events: auto;
+            touch-action: manipulation;
+        }
+        
+        .menu-overlay.hidden { display: none; }
+        
+        .menu-title {
+            color: #ffaa00;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-shadow: 0 0 25px rgba(255, 170, 0, 0.8);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        
+        .menu-subtitle {
+            color: #88aacc;
+            font-size: 14px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        .teams-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+        
+        .team-card {
+            width: 160px;
+            padding: 18px 12px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .team-card.selected {
+            transform: scale(1.05);
+            border-color: currentColor;
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 30px currentColor;
+        }
+        
+        .team-icon { font-size: 50px; pointer-events: none; }
+        .team-name { font-size: 16px; font-weight: bold; color: white; letter-spacing: 1px; pointer-events: none; }
+        .team-desc { font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4; pointer-events: none; }
+        
+        .start-btn {
+            background: linear-gradient(135deg, #ffaa00, #ff8800);
+            color: #1a2b4a;
+            border: none;
+            padding: 16px 60px;
+            font-size: 19px;
+            font-weight: bold;
+            border-radius: 35px;
+            box-shadow: 0 8px 25px rgba(255, 170, 0, 0.5);
+            cursor: pointer;
+            letter-spacing: 1px;
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        
+        .start-btn:active { transform: scale(0.95); }
+        .start-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .game-over-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.88);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 600;
+            color: white;
+            padding: 20px;
+        }
+        
+        .game-over-overlay.active { display: flex; }
+        
+        .game-over-title {
+            font-size: 34px;
+            color: #ff4444;
+            margin-bottom: 15px;
+            text-shadow: 0 0 25px rgba(255, 68, 68, 0.9);
+            text-align: center;
+        }
+        
+        .game-over-score {
+            font-size: 22px;
+            color: #ffaa00;
+            margin-bottom: 30px;
+        }
+        
+        .game-over-btn {
+            background: linear-gradient(135deg, #ffaa00, #ff8800);
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            pointer-events: auto;
+            touch-action: manipulation;
+            font-family: inherit;
+        }
+        
+        .team-indicator {
+            position: fixed;
+            top: calc(60px + env(safe-area-inset-top));
+            left: 15px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 100;
+            pointer-events: none;
+            border-left: 3px solid currentColor;
+        }
+        
+        .team-indicator .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 8px currentColor;
+        }
+        
+        .kills-counter {
+            position: fixed;
+            top: calc(100px + env(safe-area-inset-top));
+            left: 15px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            color: #88ff88;
+            z-index: 100;
+            pointer-events: none;
+            font-weight: bold;
+        }
+        
+        .game-info {
+            position: fixed;
+            bottom: calc(8px + env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+            z-index: 80;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        
+        @media (max-width: 500px) {
+            .team-card { width: 140px; padding: 14px 10px; }
+            .team-icon { font-size: 42px; }
+            .team-name { font-size: 14px; }
+            .team-desc { font-size: 11px; }
+            .start-btn { padding: 14px 40px; font-size: 16px; }
+            .menu-title { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="menu-overlay" id="menuOverlay">
+        <div class="menu-title">⚓ БЛОКИ против КОРАБЛЕЙ ⚓</div>
+        <div class="menu-subtitle">Корабли Морпехов против Блоков</div>
+        
+        <div class="teams-container" id="teamsContainer">
+            <div class="team-card" data-team="roblox" style="color: #ffaa00;">
+                <div class="team-icon">🟧</div>
+                <div class="team-name">БЛОКИ</div>
+                <div class="team-desc">Кубический боец<br>Скорость +30%</div>
+            </div>
+            <div class="team-card" data-team="marine" style="color: #44aaff;">
+                <div class="team-icon">🚢</div>
+                <div class="team-name">МОРПЕХИ</div>
+                <div class="team-desc">Военный корабль<br>HP +50%, урон +50%</div>
+            </div>
+        </div>
+        
+        <button class="start-btn" id="startBtn" disabled>ВЫБЕРИТЕ СТОРОНУ</button>
+    </div>
+    
+    <div class="top-bar">
+        <div class="score">Счёт: <span id="scoreValue">0</span></div>
+        <div class="hp-container">
+            <span class="hp-icon">❤</span>
+            <div class="hp-bar-bg"><div class="hp-fill" id="hpFill"></div></div>
+        </div>
+    </div>
+    
+    <div class="team-indicator" id="teamIndicator" style="display: none;">
+        <span class="dot"></span>
+        <span id="teamIndicatorName">—</span>
+    </div>
+    
+    <div class="kills-counter" id="killsCounter" style="display: none;">
+        💀 Убийств: <span id="killsValue">0</span>
+    </div>
+    
+    <div class="joystick-base" id="joystickBase">
+        <div class="joystick-arrow up">▲</div>
+        <div class="joystick-arrow down">▼</div>
+        <div class="joystick-arrow left">◀</div>
+        <div class="joystick-arrow right">▶</div>
+        <div class="joystick-knob" id="joystickKnob"></div>
+    </div>
+    
+    <div class="shoot-button" id="shootButton">
+        <span class="shoot-icon">🔥</span>
+    </div>
+    
+    <div class="game-info">Джойстик — движение и поворот • Свайп справа — камера • 🔥 — стрельба</div>
+    
+    <div class="game-over-overlay" id="gameOverOverlay">
+        <div class="game-over-title">💥 УНИЧТОЖЕН 💥</div>
+        <div class="game-over-score">Счёт: <span id="finalScore">0</span> • Убийств: <span id="finalKills">0</span></div>
+        <button class="game-over-btn" id="restartBtn">Играть снова</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ============================================
+        // КОНФИГУРАЦИЯ КОМАНД
+        // ============================================
+        const TEAMS = {
+            roblox: {
+                name: 'Roblox', color: 0xffaa00, cssColor: '#ffaa00',
+                isShip: false, speedMult: 1.3, hpMult: 1.0,
+                fireRateMult: 1.0, damageMult: 1.0, scale: 1.2, collisionRadius: 1.5
+            },
+            marine: {
+                name: 'Морпехи', color: 0x44aaff, cssColor: '#44aaff',
+                isShip: true, speedMult: 1.0, hpMult: 1.5,
+                fireRateMult: 0.85, damageMult: 1.5, scale: 0.9, collisionRadius: 2.0
+            }
+        };
+
+        let selectedTeam = null;
+        let teamConfig = null;
+        let enemyTeamConfig = null;
+
+        // ============================================
+        // МЕНЮ
+        // ============================================
+        const menuOverlay = document.getElementById('menuOverlay');
+        const teamsContainer = document.getElementById('teamsContainer');
+        const startBtn = document.getElementById('startBtn');
+        const teamIndicator = document.getElementById('teamIndicator');
+        const teamIndicatorName = document.getElementById('teamIndicatorName');
+        const killsCounter = document.getElementById('killsCounter');
+
+        function selectTeam(teamId) {
+            selectedTeam = teamId;
+            teamConfig = TEAMS[teamId];
+            enemyTeamConfig = teamId === 'roblox' ? TEAMS.marine : TEAMS.roblox;
+            
+            document.querySelectorAll('.team-card').forEach(c => {
+                c.classList.toggle('selected', c.dataset.team === teamId);
+            });
+            
+            startBtn.disabled = false;
+            startBtn.textContent = `ИГРАТЬ ЗА ${teamConfig.name.toUpperCase()}`;
+        }
+
+        teamsContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.team-card');
+            if (!card) return;
+            selectTeam(card.dataset.team);
+        });
+
+        teamsContainer.addEventListener('touchstart', (e) => {
+            const card = e.target.closest('.team-card');
+            if (!card) return;
+            e.preventDefault();
+            selectTeam(card.dataset.team);
+        }, { passive: false });
+
+        function startTheGame() {
+            if (!selectedTeam) return;
+            menuOverlay.classList.add('hidden');
+            teamIndicator.style.display = 'flex';
+            teamIndicator.style.color = teamConfig.cssColor;
+            teamIndicatorName.textContent = teamConfig.name;
+            killsCounter.style.display = 'block';
+            applyTeamConfig();
+        }
+
+        startBtn.addEventListener('click', startTheGame);
+        startBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startTheGame();
+        }, { passive: false });
+
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ 3D
+        // ============================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a2b4a);
+        scene.fog = new THREE.Fog(0x1a2b4a, 30, 100);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.domElement.id = 'gameCanvas';
+        document.body.appendChild(renderer.domElement);
+
+        // Освещение
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+        sunLight.position.set(20, 30, 10);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 1024;
+        sunLight.shadow.mapSize.height = 1024;
+        const d = 40;
+        sunLight.shadow.camera.left = -d;
+        sunLight.shadow.camera.right = d;
+        sunLight.shadow.camera.top = d;
+        sunLight.shadow.camera.bottom = -d;
+        scene.add(sunLight);
+        scene.add(new THREE.AmbientLight(0x506080, 0.8));
+        const backLight = new THREE.PointLight(0x4466ff, 0.6);
+        backLight.position.set(-10, 10, -20);
+        scene.add(backLight);
+
+        // Море
+        const water = new THREE.Mesh(
+            new THREE.PlaneGeometry(200, 200, 40, 40),
+            new THREE.MeshStandardMaterial({
+                color: 0x2a6f97, emissive: 0x0a1a2a, roughness: 0.35,
+                metalness: 0.1, transparent: true, opacity: 0.92, side: THREE.DoubleSide
+            })
+        );
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = -0.5;
+        water.receiveShadow = true;
+        scene.add(water);
+
+        const gridHelper = new THREE.GridHelper(200, 40, 0x88aaff, 0x224466);
+        gridHelper.position.y = -0.4;
+        scene.add(gridHelper);
+
+        // Острова
+        function createIsland(x, z, size) {
+            const g = new THREE.Group();
+            const base = new THREE.Mesh(
+                new THREE.CylinderGeometry(size, size * 1.2, 1, 8),
+                new THREE.MeshStandardMaterial({ color: 0xc2b280, roughness: 0.9 })
+            );
+            base.position.y = 0.5;
+            base.castShadow = true;
+            base.receiveShadow = true;
+            g.add(base);
+            if (Math.random() > 0.5) {
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.2, 0.3, 1.5, 6),
+                    new THREE.MeshStandardMaterial({ color: 0x8B5A2B })
+                );
+                trunk.position.set(0, 1.5, 0);
+                trunk.castShadow = true;
+                g.add(trunk);
+                const leaves = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.8, 0.8, 6),
+                    new THREE.MeshStandardMaterial({ color: 0x2e8b57 })
+                );
+                leaves.position.set(0, 2.3, 0);
+                leaves.castShadow = true;
+                g.add(leaves);
+            } else {
+                const rock = new THREE.Mesh(
+                    new THREE.DodecahedronGeometry(0.6),
+                    new THREE.MeshStandardMaterial({ color: 0x8b7d6b, roughness: 0.8 })
+                );
+                rock.position.set(0.3, 0.8, 0.3);
+                rock.castShadow = true;
+                g.add(rock);
+            }
+            g.position.set(x, -0.5, z);
+            return g;
+        }
+
+        scene.add(createIsland(15, 12, 1.8));
+        scene.add(createIsland(-18, -15, 2.2));
+        scene.add(createIsland(20, -20, 1.5));
+        scene.add(createIsland(-25, 10, 2.0));
+        scene.add(createIsland(0, 25, 1.6));
+
+        // ============================================
+        // СОЗДАНИЕ ЮНИТОВ
+        // ============================================
+        function createRobloxCharacter(color) {
+            const g = new THREE.Group();
+            const torsoMat = new THREE.MeshStandardMaterial({ color });
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 0.8), torsoMat);
+            torso.castShadow = true; torso.receiveShadow = true;
+            torso.position.y = 0.8;
+            g.add(torso);
+
+            const head = new THREE.Mesh(
+                new THREE.BoxGeometry(0.9, 0.9, 0.9),
+                new THREE.MeshStandardMaterial({ color: 0xffcc88 })
+            );
+            head.castShadow = true;
+            head.position.y = 1.9;
+            g.add(head);
+
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            const le = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), eyeMat);
+            le.position.set(-0.25, 2.0, 0.46);
+            g.add(le);
+            const re = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), eyeMat);
+            re.position.set(0.25, 2.0, 0.46);
+            g.add(re);
+
+            const armMat = new THREE.MeshStandardMaterial({ color });
+            const la = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), armMat);
+            la.castShadow = true;
+            la.position.set(-0.9, 1.0, 0);
+            g.add(la);
+            const ra = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), armMat);
+            ra.castShadow = true;
+            ra.position.set(0.9, 1.0, 0);
+            g.add(ra);
+
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x3366cc });
+            const ll = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), legMat);
+            ll.castShadow = true;
+            ll.position.set(-0.4, -0.1, 0);
+            g.add(ll);
+            const rl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), legMat);
+            rl.castShadow = true;
+            rl.position.set(0.4, -0.1, 0);
+            g.add(rl);
+
+            const gunMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 1.0), gunMat);
+            gunBody.castShadow = true;
+            gunBody.position.set(0.9, 1.2, 0.8);
+            g.add(gunBody);
+            const gunBarrel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.08, 0.6, 8),
+                new THREE.MeshStandardMaterial({ color: 0x222222 })
+            );
+            gunBarrel.rotation.x = Math.PI / 2;
+            gunBarrel.castShadow = true;
+            gunBarrel.position.set(0.9, 1.2, 1.5);
+            g.add(gunBarrel);
+            return g;
+        }
+
+        function createWarship(color) {
+            const g = new THREE.Group();
+            const hullMat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.4 });
+            
+            const hull = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 4.5), hullMat);
+            hull.castShadow = true; hull.receiveShadow = true;
+            hull.position.y = 0.6;
+            g.add(hull);
+
+            const bow = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1.5, 4), hullMat);
+            bow.rotation.x = Math.PI / 2;
+            bow.rotation.y = Math.PI / 4;
+            bow.scale.set(1, 1, 0.5);
+            bow.castShadow = true;
+            bow.position.set(0, 0.6, 2.6);
+            g.add(bow);
+
+            const deck = new THREE.Mesh(
+                new THREE.BoxGeometry(2.2, 0.15, 4.2),
+                new THREE.MeshStandardMaterial({ color: 0x8b9dc3 })
+            );
+            deck.castShadow = true;
+            deck.position.y = 1.15;
+            g.add(deck);
+
+            const cabin = new THREE.Mesh(
+                new THREE.BoxGeometry(1.3, 1.0, 1.5),
+                new THREE.MeshStandardMaterial({ color: 0xdddddd })
+            );
+            cabin.castShadow = true;
+            cabin.position.set(0, 1.8, -0.3);
+            g.add(cabin);
+
+            const windowMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x224466 });
+            const w1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.05), windowMat);
+            w1.position.set(-0.35, 2.0, 0.46);
+            g.add(w1);
+            const w2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.05), windowMat);
+            w2.position.set(0.35, 2.0, 0.46);
+            g.add(w2);
+
+            const turretBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.7, 0.8, 0.5, 8),
+                new THREE.MeshStandardMaterial({ color: 0xaaaaaa })
+            );
+            turretBase.castShadow = true;
+            turretBase.position.set(0, 2.4, 0.8);
+            g.add(turretBase);
+
+            const turretTop = new THREE.Mesh(
+                new THREE.BoxGeometry(1.0, 0.4, 1.0),
+                new THREE.MeshStandardMaterial({ color: 0x999999 })
+            );
+            turretTop.castShadow = true;
+            turretTop.position.set(0, 2.75, 0.8);
+            g.add(turretTop);
+
+            const barrel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.12, 0.12, 1.8, 8),
+                new THREE.MeshStandardMaterial({ color: 0x333333 })
+            );
+            barrel.rotation.x = Math.PI / 2;
+            barrel.castShadow = true;
+            barrel.position.set(0, 2.75, 1.9);
+            g.add(barrel);
+
+            const pole = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6),
+                new THREE.MeshStandardMaterial({ color: 0xcccccc })
+            );
+            pole.position.set(0, 2.8, -1.1);
+            g.add(pole);
+
+            const flag = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.7, 0.4),
+                new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, emissive: color, emissiveIntensity: 0.3 })
+            );
+            flag.position.set(0.4, 3.2, -1.1);
+            g.add(flag);
+            return g;
+        }
+
+        function createUnit(config) {
+            return config.isShip ? createWarship(config.color) : createRobloxCharacter(config.color);
+        }
+
+        // ============================================
+        // ИГРОК
+        // ============================================
+        const playerGroup = new THREE.Group();
+        let playerCollisionRadius = 1.5;
+        scene.add(playerGroup);
+
+        // ============================================
+        // ВРАГИ
+        // ============================================
+        const enemies = [];
+        const enemyCount = 5;
+        const enemyBaseSpeed = 0.025;
+
+        function spawnEnemies() {
+            for (let i = 0; i < enemyCount; i++) {
+                const unit = createUnit(enemyTeamConfig);
+                const angle = (i / enemyCount) * Math.PI * 2;
+                const radius = 13 + Math.random() * 6;
+                unit.position.set(Math.cos(angle) * radius, 0.8, Math.sin(angle) * radius);
+                unit.lookAt(0, 0.8, 0);
+                scene.add(unit);
+                enemies.push({
+                    mesh: unit,
+                    hp: enemyTeamConfig.isShip ? 4 : 3,
+                    maxHp: enemyTeamConfig.isShip ? 4 : 3,
+                    speed: enemyBaseSpeed * (0.7 + Math.random() * 0.5) * (enemyTeamConfig.isShip ? 0.8 : 1.2),
+                    angle, radius,
+                    active: true,
+                    config: enemyTeamConfig
+                });
+            }
+        }
+
+        // ============================================
+        // СНАРЯДЫ
+        // ============================================
+        const bullets = [];
+        const bulletSpeed = 1.0;
+
+        function createBullet(position, direction, color, size = 0.25) {
+            const bullet = new THREE.Mesh(
+                new THREE.SphereGeometry(size, 8, 8),
+                new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.0 })
+            );
+            bullet.position.copy(position);
+            bullet.castShadow = true;
+            scene.add(bullet);
+            bullets.push({
+                mesh: bullet,
+                direction: direction.clone().normalize(),
+                life: 120,
+                active: true
+            });
+        }
+
+        // ============================================
+        // ДЖОЙСТИК
+        // ============================================
+        const input = { moveX: 0, moveY: 0, shooting: false };
+        const joystickBase = document.getElementById('joystickBase');
+        const joystickKnob = document.getElementById('joystickKnob');
+        const joystickMaxDist = 55;
+        const joystickDeadZone = 0.2;
+
+        let joystickTouchId = null;
+        let joystickOrigin = { x: 0, y: 0 };
+
+        function isTouchInJoystickZone(x, y) {
+            if (x > window.innerWidth * 0.5) return false;
+            if (!menuOverlay.classList.contains('hidden')) return false;
+            if (document.getElementById('gameOverOverlay').classList.contains('active')) return false;
+            return true;
+        }
+
+        function startJoystick(touch) {
+            joystickTouchId = touch.identifier;
+            joystickOrigin.x = touch.clientX;
+            joystickOrigin.y = touch.clientY;
+            joystickBase.style.left = touch.clientX + 'px';
+            joystickBase.style.top = touch.clientY + 'px';
+            joystickBase.classList.add('active');
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+        }
+
+        function updateJoystick(touch) {
+            let dx = touch.clientX - joystickOrigin.x;
+            let dy = touch.clientY - joystickOrigin.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > joystickMaxDist) {
+                dx = (dx / dist) * joystickMaxDist;
+                dy = (dy / dist) * joystickMaxDist;
+            }
+            
+            joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            
+            const nx = dx / joystickMaxDist;
+            const ny = -dy / joystickMaxDist;
+            
+            const mag = Math.sqrt(nx * nx + ny * ny);
+            if (mag < joystickDeadZone) {
+                input.moveX = 0;
+                input.moveY = 0;
+                return;
+            }
+            
+            if (Math.abs(nx) > Math.abs(ny)) {
+                input.moveX = nx > 0 ? 1 : -1;
+                input.moveY = 0;
+            } else {
+                input.moveX = 0;
+                input.moveY = ny > 0 ? 1 : -1;
+            }
+        }
+
+        function endJoystick() {
+            joystickTouchId = null;
+            input.moveX = 0;
+            input.moveY = 0;
+            joystickBase.classList.remove('active');
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+        }
+
+        // ============================================
+        // КАМЕРА
+        // ============================================
+        let cameraTouchId = null;
+        let cameraLastX = 0;
+        let cameraLastY = 0;
+        let cameraRotationY = 0;
+        let cameraRotationX = 0.35;
+        const cameraDistance = 16;
+
+        // ============================================
+        // ОБРАБОТКА КАСАНИЙ
+        // ============================================
+        window.addEventListener('touchstart', (e) => {
+            for (let touch of e.changedTouches) {
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                if (target && (target.closest('.shoot-button') || target.closest('.start-btn') || 
+                    target.closest('.team-card') || target.closest('.game-over-btn'))) continue;
+                
+                if (joystickTouchId === null && isTouchInJoystickZone(touch.clientX, touch.clientY)) {
+                    startJoystick(touch);
+                } else if (cameraTouchId === null && touch.clientX > window.innerWidth * 0.5) {
+                    cameraTouchId = touch.identifier;
+                    cameraLastX = touch.clientX;
+                    cameraLastY = touch.clientY;
+                }
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            for (let touch of e.changedTouches) {
+                if (touch.identifier === joystickTouchId) {
+                    updateJoystick(touch);
+                }
+                if (touch.identifier === cameraTouchId) {
+                    const dx = touch.clientX - cameraLastX;
+                    const dy = touch.clientY - cameraLastY;
+                    
+                    cameraRotationY -= dx * 0.008;
+                    
+                    if (gameStarted && !gameOver) {
+                        playerGroup.rotation.y = cameraRotationY;
+                    }
+                    
+                    cameraRotationX += dy * 0.005;
+                    cameraRotationX = Math.max(0.05, Math.min(0.9, cameraRotationX));
+                    
+                    cameraLastX = touch.clientX;
+                    cameraLastY = touch.clientY;
+                }
+            }
+        }, { passive: true });
+
+        function handleTouchEnd(e) {
+            for (let touch of e.changedTouches) {
+                if (touch.identifier === joystickTouchId) endJoystick();
+                if (touch.identifier === cameraTouchId) cameraTouchId = null;
+            }
+        }
+
+        window.addEventListener('touchend', handleTouchEnd, { passive: true });
+        window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
+        // ============================================
+        // КНОПКА СТРЕЛЬБЫ
+        // ============================================
+        const shootButton = document.getElementById('shootButton');
+        
+        shootButton.addEventListener('touchstart', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            input.shooting = true;
+            shootButton.classList.add('pressed');
+            tryShoot();
+        }, { passive: false });
+
+        shootButton.addEventListener('touchend', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            input.shooting = false;
+            shootButton.classList.remove('pressed');
+        }, { passive: false });
+
+        shootButton.addEventListener('touchcancel', () => {
+            input.shooting = false;
+            shootButton.classList.remove('pressed');
+        });
+
+        shootButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            input.shooting = true;
+            shootButton.classList.add('pressed');
+            tryShoot();
+        });
+        shootButton.addEventListener('mouseup', () => {
+            input.shooting = false;
+            shootButton.classList.remove('pressed');
+        });
+        shootButton.addEventListener('mouseleave', () => {
+            input.shooting = false;
+            shootButton.classList.remove('pressed');
+        });
+
+        // ============================================
+        // КЛАВИАТУРА
+        // ============================================
+        const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
+        
+        window.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'KeyW': keys.w = true; break;
+                case 'KeyA': keys.a = true; break;
+                case 'KeyS': keys.s = true; break;
+                case 'KeyD': keys.d = true; break;
+                case 'KeyQ': keys.q = true; break;
+                case 'KeyE': keys.e = true; break;
+                case 'Space': 
+                    if (!input.shooting) { input.shooting = true; tryShoot(); }
+                    break;
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'KeyW': keys.w = false; break;
+                case 'KeyA': keys.a = false; break;
+                case 'KeyS': keys.s = false; break;
+                case 'KeyD': keys.d = false; break;
+                case 'KeyQ': keys.q = false; break;
+                case 'KeyE': keys.e = false; break;
+                case 'Space': input.shooting = false; break;
+            }
+        });
+
+        // ============================================
+        // ИГРОВАЯ ЛОГИКА
+        // ============================================
+        let score = 0;
+        let kills = 0;
+        let playerHP = 100;
+        let maxHP = 100;
+        let gameOver = false;
+        let gameStarted = false;
+        let lastShootTime = 0;
+        let shootCooldown = 250;
+        let lastDamageTime = 0;
+        let baseMoveSpeed = 0.18;
+        let bulletDamage = 1;
+
+        const scoreEl = document.getElementById('scoreValue');
+        const killsEl = document.getElementById('killsValue');
+        const hpFillEl = document.getElementById('hpFill');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const finalScoreEl = document.getElementById('finalScore');
+        const finalKillsEl = document.getElementById('finalKills');
+
+        function updateScoreDisplay() {
+            scoreEl.textContent = score;
+            killsEl.textContent = kills;
+        }
+
+        function updateHPDisplay() {
+            const percent = Math.max(0, playerHP) / maxHP * 100;
+            hpFillEl.style.width = percent + '%';
+            if (percent > 60) hpFillEl.style.background = '#44ff44';
+            else if (percent > 30) hpFillEl.style.background = '#ffaa00';
+            else hpFillEl.style.background = '#ff4444';
+        }
+
+        function applyTeamConfig() {
+            if (!teamConfig) return;
+            while(playerGroup.children.length) playerGroup.remove(playerGroup.children[0]);
+            const playerModel = createUnit(teamConfig);
+            while(playerModel.children.length) playerGroup.add(playerModel.children[0]);
+            
+            playerGroup.position.set(0, teamConfig.isShip ? 1.0 : 1.5, 0);
+            playerGroup.scale.set(teamConfig.scale, teamConfig.scale, teamConfig.scale);
+            playerGroup.rotation.y = cameraRotationY;
+            playerCollisionRadius = teamConfig.collisionRadius;
+            
+            baseMoveSpeed = 0.18 * teamConfig.speedMult;
+            maxHP = Math.round(100 * teamConfig.hpMult);
+            playerHP = maxHP;
+            bulletDamage = 1 * teamConfig.damageMult;
+            shootCooldown = 250 / teamConfig.fireRateMult;
+            
+            spawnEnemies();
+            updateHPDisplay();
+            updateScoreDisplay();
+            gameStarted = true;
+        }
+
+        function tryShoot() {
+            if (!gameStarted || gameOver) return;
+            const now = performance.now();
+            if (now - lastShootTime < shootCooldown) return;
+            lastShootTime = now;
+            
+            const playerDir = new THREE.Vector3(0, 0, 1).applyQuaternion(playerGroup.quaternion);
+            const startPos = playerGroup.position.clone().add(playerDir.clone().multiplyScalar(2.5));
+            startPos.y += teamConfig.isShip ? 1.2 : 1.0;
+            
+            const bulletSize = teamConfig.isShip ? 0.3 : 0.25;
+            createBullet(startPos, playerDir, teamConfig.color, bulletSize);
+        }
+
+        // ============================================
+        // АНИМАЦИЯ
+        // ============================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+            const time = performance.now();
+
+            if (gameStarted && !gameOver) {
+                // ============ ДВИЖЕНИЕ ИГРОКА ============
+                let moveX = input.moveX;
+                let moveY = input.moveY;
+                
+                if (keys.w) moveY = 1;
+                if (keys.s) moveY = -1;
+                if (keys.a) moveX = -1;
+                if (keys.d) moveX = 1;
+
+                if (moveX !== 0 || moveY !== 0) {
+                    // Вправо/влево — ПЛАВНЫЙ ПОВОРОТ игрока на 90°
+                    if (moveX !== 0) {
+                        const targetRotationY = cameraRotationY + (moveX > 0 ? -Math.PI / 2 : Math.PI / 2);
+                        
+                        let diff = targetRotationY - playerGroup.rotation.y;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        
+                        // ПЛАВНЫЙ поворот: 0.02 вместо 0.2
+                        playerGroup.rotation.y += diff * 0.02;
+                        
+                        // Синхронизируем камеру с новым направлением игрока
+                        cameraRotationY = playerGroup.rotation.y;
+                        
+                        // Пока идёт поворот — НЕ двигаемся, чтобы не было рывка вбок
+                        if (Math.abs(diff) < 0.15) {
+                            const forwardX = Math.sin(playerGroup.rotation.y);
+                            const forwardZ = Math.cos(playerGroup.rotation.y);
+                            const worldMove = new THREE.Vector3(forwardX, 0, forwardZ);
+                            worldMove.normalize();
+                            playerGroup.position.add(worldMove.multiplyScalar(baseMoveSpeed));
+                        }
+                    } else {
+                        // Движение вперёд/назад — без поворота
+                        const forwardX = Math.sin(playerGroup.rotation.y);
+                        const forwardZ = Math.cos(playerGroup.rotation.y);
+                        
+                        const worldMove = new THREE.Vector3(forwardX * moveY, 0, forwardZ * moveY);
+                        if (worldMove.length() > 0.001) {
+                            worldMove.normalize();
+                            playerGroup.position.add(worldMove.multiplyScalar(baseMoveSpeed));
+                        }
+                    }
+                }
+
+                // Ограничение позиции
+                playerGroup.position.x = Math.max(-25, Math.min(25, playerGroup.position.x));
+                playerGroup.position.z = Math.max(-25, Math.min(25, playerGroup.position.z));
+
+                if (input.shooting && time - lastShootTime > shootCooldown) {
+                    tryShoot();
+                }
+
+                // ============ ДВИЖЕНИЕ ВРАГОВ ============
+                enemies.forEach(enemy => {
+                    if (!enemy.active) return;
+                    enemy.angle += enemy.speed * delta * 30;
+                    enemy.mesh.position.x = Math.cos(enemy.angle) * enemy.radius;
+                    enemy.mesh.position.z = Math.sin(enemy.angle) * enemy.radius;
+                    enemy.mesh.position.y = enemy.config.isShip ? 0.8 : 1.3;
+                    
+                    const nextAngle = enemy.angle + 0.1;
+                    const nx = Math.cos(nextAngle) * enemy.radius;
+                    const nz = Math.sin(nextAngle) * enemy.radius;
+                    enemy.mesh.lookAt(nx, enemy.mesh.position.y, nz);
+                    enemy.mesh.rotation.z = Math.sin(time * 0.002 + enemy.angle) * 0.04;
+                });
+
+                // ============ СНАРЯДЫ ============
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    const bullet = bullets[i];
+                    if (!bullet.active) continue;
+                    bullet.mesh.position.add(bullet.direction.clone().multiplyScalar(bulletSpeed));
+                    bullet.life -= 1;
+                    
+                    let hit = false;
+                    for (let j = 0; j < enemies.length; j++) {
+                        const enemy = enemies[j];
+                        if (!enemy.active) continue;
+                        const dist = bullet.mesh.position.distanceTo(enemy.mesh.position);
+                        const hitRadius = enemy.config.isShip ? 3.0 : 1.8;
+                        if (dist < hitRadius) {
+                            enemy.hp -= bulletDamage;
+                            hit = true;
+                            if (enemy.hp <= 0) {
+                                enemy.active = false;
+                                enemy.mesh.visible = false;
+                                score += 10;
+                                kills += 1;
+                                updateScoreDisplay();
+                                setTimeout(() => {
+                                    if (!gameOver && gameStarted) {
+                                        enemy.active = true;
+                                        enemy.hp = enemy.maxHp;
+                                        enemy.mesh.visible = true;
+                                        enemy.radius = 13 + Math.random() * 6;
+                                        enemy.angle = Math.random() * Math.PI * 2;
+                                    }
+                                }, 2500);
+                            }
+                            break;
+                        }
+                    }
+                    
+                    if (hit || bullet.life <= 0 || bullet.mesh.position.length() > 60) {
+                        bullet.active = false;
+                        scene.remove(bullet.mesh);
+                        bullets.splice(i, 1);
+                    }
+                }
+
+                // ============ УРОН ИГРОКУ ============
+                for (let enemy of enemies) {
+                    if (!enemy.active) continue;
+                    const dist = playerGroup.position.distanceTo(enemy.mesh.position);
+                    const collisionDist = playerCollisionRadius + (enemy.config.isShip ? 2.5 : 1.5);
+                    if (dist < collisionDist && time - lastDamageTime > 700) {
+                        playerHP -= 10;
+                        updateHPDisplay();
+                        lastDamageTime = time;
+                        if (playerHP <= 0) {
+                            playerHP = 0;
+                            updateHPDisplay();
+                            gameOver = true;
+                            finalScoreEl.textContent = score;
+                            finalKillsEl.textContent = kills;
+                            gameOverOverlay.classList.add('active');
+                        }
+                    }
+                }
+            }
+
+            // ============ КАМЕРА ============
+            const camOffsetX = Math.sin(cameraRotationY) * cameraDistance * Math.cos(cameraRotationX);
+            const camOffsetZ = Math.cos(cameraRotationY) * cameraDistance * Math.cos(cameraRotationX);
+            const camOffsetY = Math.sin(cameraRotationX) * cameraDistance + 4;
+            
+            const targetCamPos = new THREE.Vector3(
+                playerGroup.position.x - camOffsetX,
+                playerGroup.position.y + camOffsetY,
+                playerGroup.position.z - camOffsetZ
+            );
+            camera.position.lerp(targetCamPos, 0.12);
+            camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1.5, playerGroup.position.z);
+
+            water.position.y = -0.5 + Math.sin(time * 0.001) * 0.1;
+            renderer.render(scene, camera);
+        }
+
+        // ============================================
+        // ПЕРЕЗАПУСК
+        // ============================================
+        const restartBtn = document.getElementById('restartBtn');
+        restartBtn.addEventListener('click', () => location.reload());
+        restartBtn.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); 
+            location.reload(); 
+        }, { passive: false });
+
+        // ============================================
+        // ЗАПУСК
+        // ============================================
+        updateScoreDisplay();
+        updateHPDisplay();
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        });
+
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }, 100);
+        });
+
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Звёзды
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsCount = 600;
+        const starsPositions = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount * 3; i += 3) {
+            starsPositions[i] = (Math.random() - 0.5) * 200;
+            starsPositions[i+1] = (Math.random() - 0.5) * 80 + 35;
+            starsPositions[i+2] = (Math.random() - 0.5) * 200 - 50;
+        }
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3));
+        scene.add(new THREE.Points(starsGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4 })));
+    </script>
+</body>
+  </html>
